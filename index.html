@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Focus Timer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="main">
+    <button id="settingsBtn" class="settings-btn" title="Settings"><span class="settings-icon">⚙️</span></button>
+    <section class="timer-card">
+      <div class="mode-header">
+        <span id="modeText" class="mode-text"></span>
+      </div>
+
+      <div class="timer-display">
+        <div id="countdown" class="countdown">45:00</div>
+        <button id="startBtn" class="primary">Start Focusing</button>
+      </div>
+
+      <div class="stopwatch-block">
+        <div class="stopwatch-label" id="stopwatchLabel">Focus stopwatch (manual)</div>
+        <div id="stopwatch" class="stopwatch">00:00:00</div>
+      </div>
+    </section>
+
+    <section class="summary">
+      <div class="summary-item">
+        <button id="decreaseBtn" class="time-adjust-btn">-15 min</button>
+        <div class="summary-content">
+          <span class="summary-title">Today focused</span>
+          <span id="todayTotal" class="summary-value">00:00:00</span>
+        </div>
+        <button id="increaseBtn" class="time-adjust-btn">+15 min</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="settingsOverlay" class="settings-overlay">
+    <div class="settings-modal">
+      <div class="settings-header">
+        <h2>Settings</h2>
+        <button id="closeSettings" class="close-btn">×</button>
+      </div>
+      <div class="settings-body">
+        <div class="setting-group">
+          <label for="focusInput">Focus Duration (minutes)</label>
+          <input type="number" id="focusInput" min="1" max="120" value="45">
+        </div>
+        <div class="setting-group">
+          <label for="breakInput">Break Duration (minutes)</label>
+          <input type="number" id="breakInput" min="1" max="60" value="10">
+        </div>
+      </div>
+      <div class="settings-footer">
+        <button id="saveSettings" class="primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
