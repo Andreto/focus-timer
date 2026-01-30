@@ -13,6 +13,10 @@
   <main class="main">
     <button id="settingsBtn" class="settings-btn" title="Settings"><span class="settings-icon">⚙️</span></button>
     <section class="timer-card">
+      <div class="topic-selector">
+        <label for="topicSelect">Current topic:</label>
+        <select id="topicSelect" class="topic-select"></select>
+      </div>
       <div class="mode-header">
         <span id="modeText" class="mode-text"></span>
       </div>
@@ -29,14 +33,13 @@
     </section>
 
     <section class="summary">
-      <div class="summary-item">
-        <button id="decreaseBtn" class="time-adjust-btn">-15 min</button>
+      <div class="summary-item total-time">
         <div class="summary-content">
-          <span class="summary-title">Today focused</span>
+          <span class="summary-title">Total Today</span>
           <span id="todayTotal" class="summary-value">00:00:00</span>
         </div>
-        <button id="increaseBtn" class="time-adjust-btn">+15 min</button>
       </div>
+      <div id="topicTimers" class="topic-timers"></div>
     </section>
   </main>
 
@@ -54,6 +57,14 @@
         <div class="setting-group">
           <label for="breakInput">Break Duration (minutes)</label>
           <input type="number" id="breakInput" min="1" max="60" value="10">
+        </div>
+        <div class="setting-group">
+          <label>Topics</label>
+          <div id="topicList" class="topic-list"></div>
+          <div class="topic-add-section">
+            <input type="text" id="newTopicInput" placeholder="New topic name">
+            <button id="addTopicBtn" class="secondary-btn">Add Topic</button>
+          </div>
         </div>
       </div>
       <div class="settings-footer">

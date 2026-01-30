@@ -16,29 +16,26 @@ const todayTotalEl = document.getElementById('todayTotal');
 const stopwatchLabel = document.getElementById('stopwatchLabel');
 const modeText = document.getElementById('modeText');
 const settingsBtn = document.getElementById('settingsBtn');
-const decreaseBtn = document.getElementById('decreaseBtn');
-const increaseBtn = document.getElementById('increaseBtn');
 const timerCard = document.querySelector('.timer-card');
 const settingsOverlay = document.getElementById('settingsOverlay');
 const closeSettings = document.getElementById('closeSettings');
 const focusInput = document.getElementById('focusInput');
 const breakInput = document.getElementById('breakInput');
 const saveSettings = document.getElementById('saveSettings');
+const topicSelect = document.getElementById('topicSelect');
+const topicTimersEl = document.getElementById('topicTimers');
+const topicList = document.getElementById('topicList');
+const newTopicInput = document.getElementById('newTopicInput');
+const addTopicBtn = document.getElementById('addTopicBtn');
+
+let currentTopic = 'misc';
+let topics = ['misc'];
 
 function setStatus(isRunning) {
   if (isRunning) {
     modeText.textContent = mode === 'focus' ? 'Focusing' : 'Taking a break';
-    if (mode === 'focus') {
-      timerCard.style.borderTopColor = '#873131';
-      timerCard.style.borderTopWidth = '4px';
-    } else {
-      timerCard.style.borderTopColor = '#374d8a';
-      timerCard.style.borderTopWidth = '4px';
-    }
   } else {
     modeText.textContent = '';
-    timerCard.style.borderTopColor = 'rgba(255, 255, 255, 0.08)';
-    timerCard.style.borderTopWidth = '1px';
   }
 }
 
@@ -164,7 +161,16 @@ function addFocusToToday(seconds) {
   const currentSeconds = current ? Number(current) || 0 : 0;
   const updated = currentSeconds + Math.max(0, seconds);
   setCookie(key, String(updated), 7);
+  
+  // Add to topic-specific time
+  const topicKey = dailyTopicKey(currentTopic);
+  const topicCurrent = getCookie(topicKey);
+  const topicSeconds = topicCurrent ? Number(topicCurrent) || 0 : 0;
+  const topicUpdated = topicSeconds + Math.max(0, seconds);
+  setCookie(topicKey, String(topicUpdated), 7);
+  
   renderTodayTotal();
+  renderTopicTimers();
 }
 
 function renderTodayTotal() {
@@ -180,6 +186,14 @@ function dailyKey() {
   const mm = String(now.getMonth() + 1).padStart(2, '0');
   const dd = String(now.getDate()).padStart(2, '0');
   return `focus_total_${yyyy}-${mm}-${dd}`;
+}
+
+function dailyTopicKey(topic) {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  return `focus_${topic}_${yyyy}-${mm}-${dd}`;
 }
 
 function setCookie(name, value, days) {
@@ -238,6 +252,160 @@ function handleSaveSettings() {
   closeSettingsModal();
 }
 
+function loadTopics() {
+  const saved = localStorage.getItem('topics');
+  if (saved) {
+    topics = JSON.parse(saved);
+  } else {
+    topics = ['misc'];
+  }
+  renderTopicSelect();
+  renderTopicList();
+}
+
+function saveTopics() {
+  localStorage.setItem('topics', JSON.stringify(topics));
+}
+
+function renderTopicSelect() {
+  topicSelect.innerHTML = '';
+  topics.forEach(topic => {
+    const option = document.createElement('option');
+    option.value = topic;
+    option.textContent = topic.charAt(0).toUpperCase() + topic.slice(1);
+    topicSelect.appendChild(option);
+  });
+  topicSelect.value = currentTopic;
+}
+
+function renderTopicList() {
+  topicList.innerHTML = '';
+  topics.forEach(topic => {
+    const item = document.createElement('div');
+    item.className = 'topic-item';
+    
+    const name = document.createElement('span');
+    name.className = 'topic-item-name';
+    name.textContent = topic;
+    
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-topic-btn';
+    removeBtn.textContent = 'Remove';
+    removeBtn.onclick = () => removeTopic(topic);
+    
+    item.appendChild(name);
+    if (topics.length > 1) {
+      item.appendChild(removeBtn);
+    }
+    
+    topicList.appendChild(item);
+  });
+}
+
+function addTopic() {
+  const newTopic = newTopicInput.value.trim().toLowerCase();
+  if (!newTopic) {
+    alert('Please enter a topic name');
+    return;
+  }
+  if (topics.includes(newTopic)) {
+    alert('Topic already exists');
+    return;
+  }
+  topics.push(newTopic);
+  saveTopics();
+  renderTopicSelect();
+  renderTopicList();
+  newTopicInput.value = '';
+}
+
+function removeTopic(topic) {
+  if (topics.length === 1) {
+    alert('You must have at least one topic');
+    return;
+  }
+  topics = topics.filter(t => t !== topic);
+  if (currentTopic === topic) {
+    currentTopic = topics[0];
+    topicSelect.value = currentTopic;
+  }
+  saveTopics();
+  renderTopicSelect();
+  renderTopicList();
+  renderTopicTimers();
+}
+
+function renderTopicTimers() {
+  topicTimersEl.innerHTML = '';
+  topics.forEach(topic => {
+    const topicKey = dailyTopicKey(topic);
+    const topicSeconds = getCookie(topicKey) ? Number(getCookie(topicKey)) || 0 : 0;
+    
+    const item = document.createElement('div');
+    item.className = 'summary-item topic-timer-item';
+    
+    const title = document.createElement('span');
+    title.className = 'summary-title';
+    title.textContent = topic;
+    
+    const controlsGroup = document.createElement('div');
+    controlsGroup.className = 'topic-timer-controls';
+    
+    const decreaseBtn = document.createElement('button');
+    decreaseBtn.className = 'time-adjust-btn';
+    decreaseBtn.textContent = '-15 min';
+    decreaseBtn.onclick = () => adjustTopicTime(topic, -15 * 60);
+    
+    const value = document.createElement('span');
+    value.className = 'summary-value';
+    value.textContent = formatStopwatch(topicSeconds);
+    
+    const increaseBtn = document.createElement('button');
+    increaseBtn.className = 'time-adjust-btn';
+    increaseBtn.textContent = '+15 min';
+    increaseBtn.onclick = () => adjustTopicTime(topic, 15 * 60);
+    
+    controlsGroup.appendChild(decreaseBtn);
+    controlsGroup.appendChild(value);
+    controlsGroup.appendChild(increaseBtn);
+    
+    item.appendChild(title);
+    item.appendChild(controlsGroup);
+    
+    topicTimersEl.appendChild(item);
+  });
+}
+
+function adjustTopicTime(topic, seconds) {
+  const topicKey = dailyTopicKey(topic);
+  const current = getCookie(topicKey);
+  const currentSeconds = current ? Number(current) || 0 : 0;
+  const updated = Math.max(0, currentSeconds + seconds);
+  setCookie(topicKey, String(updated), 7);
+  
+  // Update total
+  const totalKey = dailyKey();
+  const totalCurrent = getCookie(totalKey);
+  const totalSeconds = totalCurrent ? Number(totalCurrent) || 0 : 0;
+  const totalUpdated = Math.max(0, totalSeconds + seconds);
+  setCookie(totalKey, String(totalUpdated), 7);
+  
+  renderTodayTotal();
+  renderTopicTimers();
+}
+
+topicSelect.addEventListener('change', () => {
+  currentTopic = topicSelect.value;
+});
+
+addTopicBtn.addEventListener('click', addTopic);
+
+newTopicInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    addTopic();
+  }
+});
+
 settingsBtn.addEventListener('click', openSettings);
 closeSettings.addEventListener('click', closeSettingsModal);
 saveSettings.addEventListener('click', handleSaveSettings);
@@ -250,26 +418,11 @@ settingsOverlay.addEventListener('click', (e) => {
 
 startBtn.addEventListener('click', handleMainButton);
 
-decreaseBtn.addEventListener('click', () => {
-  adjustTodayTotal(-15 * 60);
-});
-
-increaseBtn.addEventListener('click', () => {
-  adjustTodayTotal(15 * 60);
-});
-
-function adjustTodayTotal(seconds) {
-  const key = dailyKey();
-  const current = getCookie(key);
-  const currentSeconds = current ? Number(current) || 0 : 0;
-  const updated = Math.max(0, currentSeconds + seconds);
-  setCookie(key, String(updated), 7);
-  renderTodayTotal();
-}
-
 loadSettings();
+loadTopics();
 setActiveTab('focus');
 renderTodayTotal();
+renderTopicTimers();
 updateCountdown();
 updateStopwatch(0);
 updateButtonText();
