@@ -27,9 +27,91 @@ const topicTimersEl = document.getElementById('topicTimers');
 const topicList = document.getElementById('topicList');
 const newTopicInput = document.getElementById('newTopicInput');
 const addTopicBtn = document.getElementById('addTopicBtn');
+const weeklyChartEl = document.getElementById('weeklyChart');
+const weeklyTotalEl = document.getElementById('weeklyTotal');
+const reportRangeEl = document.getElementById('reportRange');
+const reportFiltersEl = document.getElementById('reportFilters');
+const chartAxisEl = document.getElementById('chartAxis');
+const previousWeekBtn = document.getElementById('previousWeek');
+const nextWeekBtn = document.getElementById('nextWeek');
+const timerPageEl = document.getElementById('timerPage');
+const reportsPageEl = document.getElementById('reportsPage');
+const timerPageBtn = document.getElementById('timerPageBtn');
+const reportsPageBtn = document.getElementById('reportsPageBtn');
+const timerNav = document.getElementById('timerNav');
 
 let currentTopic = 'misc';
 let topics = ['misc'];
+let visibleReportTopics = new Set();
+let reportWeekOffset = 0;
+
+const REPORTS_STORAGE_KEY = 'focusReports.v1';
+const TOPIC_COLORS = ['#5cf0ff', '#ff8ab7', '#a78bfa', '#fbbf24', '#4ade80', '#fb7185', '#60a5fa'];
+
+function dateId(date = new Date()) { return date.toLocaleDateString('en-CA'); }
+function getReports() {
+  try { const reports = JSON.parse(localStorage.getItem(REPORTS_STORAGE_KEY) || '{}'); return reports && typeof reports === 'object' ? reports : {}; }
+  catch { return {}; }
+}
+function saveReports(reports) {
+  try { localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(reports)); }
+  catch (error) { console.warn('Focus history could not be saved; browser storage may be full.', error); }
+}
+function reportForToday() {
+  const reports = getReports(), key = dateId();
+  reports[key] ||= { total: 0, topics: {} };
+  reports[key].topics ||= {};
+  return { reports, report: reports[key] };
+}
+function getTodaySeconds() { return Number(getReports()[dateId()]?.total) || 0; }
+function getTodayTopicSeconds(topic) { return Number(getReports()[dateId()]?.topics?.[topic]) || 0; }
+function migrateTodayFromLegacyCookies() {
+  const reports = getReports(), key = dateId();
+  if (reports[key]) return;
+  const total = Number(getCookie(dailyKey())) || 0;
+  const legacyTopics = Object.fromEntries(topics.map(topic => [topic, Number(getCookie(dailyTopicKey(topic))) || 0]).filter(([, seconds]) => seconds));
+  if (total || Object.keys(legacyTopics).length) {
+    reports[key] = { total, topics: legacyTopics };
+    saveReports(reports);
+  }
+}
+function formatCompactTime(seconds) { const hours = Math.floor(seconds / 3600), minutes = Math.floor((seconds % 3600) / 60); return hours ? `${hours}h ${minutes}m` : `${minutes}m`; }
+function topicColor(topic) { return TOPIC_COLORS[topics.indexOf(topic) % TOPIC_COLORS.length]; }
+
+function renderWeeklyReport() {
+  const reports = getReports(), today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const monday = new Date(today);
+  const daysSinceMonday = (today.getDay() + 6) % 7;
+  monday.setDate(today.getDate() - daysSinceMonday - reportWeekOffset * 7);
+  const days = Array.from({ length: 7 }, (_, i) => { const day = new Date(monday); day.setDate(monday.getDate() + i); return day; });
+  if (!visibleReportTopics.size) topics.forEach(topic => visibleReportTopics.add(topic));
+  const visibleTopics = topics.filter(topic => visibleReportTopics.has(topic));
+  reportFiltersEl.innerHTML = '';
+  topics.forEach(topic => {
+    const label = document.createElement('label'); label.className = 'report-filter'; label.style.setProperty('--topic-color', topicColor(topic));
+    label.innerHTML = `<input type="checkbox" ${visibleReportTopics.has(topic) ? 'checked' : ''}><span class="filter-dot"></span><span>${topic}</span>`;
+    label.querySelector('input').addEventListener('change', event => { event.target.checked ? visibleReportTopics.add(topic) : visibleReportTopics.delete(topic); renderWeeklyReport(); });
+    reportFiltersEl.appendChild(label);
+  });
+  const totals = days.map(day => visibleTopics.reduce((sum, topic) => sum + (Number(reports[dateId(day)]?.topics?.[topic]) || 0), 0));
+  const max = Math.max(Math.ceil(Math.max(...totals, 1) / 3600) * 3600, 3600);
+  chartAxisEl.innerHTML = [max, max * .75, max * .5, max * .25, 0].map(value => `<span>${value ? formatCompactTime(value) : '0h'}</span>`).join('');
+  weeklyChartEl.innerHTML = '';
+  days.forEach((day, index) => {
+    const total = totals[index], item = document.createElement('div'); item.className = 'chart-day';
+    const segments = visibleTopics.map(topic => {
+      const seconds = Number(reports[dateId(day)]?.topics?.[topic]) || 0;
+      const label = seconds / max >= .12 ? `<span class="chart-segment-label">${formatCompactTime(seconds)}</span>` : '';
+      return seconds ? `<div class="chart-segment" title="${topic}: ${formatStopwatch(seconds)}" style="height:${(seconds / max) * 100}%;background:${topicColor(topic)}">${label}</div>` : '';
+    }).join('');
+    item.innerHTML = `<span class="chart-value">${total ? formatCompactTime(total) : '—'}</span><div class="chart-bar-area">${segments}</div><span class="chart-label">${day.toLocaleDateString(undefined, { weekday: 'short' })}</span>`;
+    weeklyChartEl.appendChild(item);
+  });
+  weeklyTotalEl.textContent = `Selected categories this week: ${formatStopwatch(totals.reduce((sum, value) => sum + value, 0))}`;
+  reportRangeEl.textContent = `${days[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${days[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  nextWeekBtn.disabled = reportWeekOffset === 0;
+}
 
 function setStatus(isRunning) {
   if (isRunning) {
@@ -156,28 +238,28 @@ function handleMainButton() {
 }
 
 function addFocusToToday(seconds) {
-  const key = dailyKey();
-  const current = getCookie(key);
-  const currentSeconds = current ? Number(current) || 0 : 0;
-  const updated = currentSeconds + Math.max(0, seconds);
-  setCookie(key, String(updated), 7);
-  
-  // Add to topic-specific time
-  const topicKey = dailyTopicKey(currentTopic);
-  const topicCurrent = getCookie(topicKey);
-  const topicSeconds = topicCurrent ? Number(topicCurrent) || 0 : 0;
-  const topicUpdated = topicSeconds + Math.max(0, seconds);
-  setCookie(topicKey, String(topicUpdated), 7);
+  const { reports, report } = reportForToday();
+  const added = Math.max(0, seconds);
+  report.total = (Number(report.total) || 0) + added;
+  report.topics[currentTopic] = (Number(report.topics[currentTopic]) || 0) + added;
+  saveReports(reports);
   
   renderTodayTotal();
   renderTopicTimers();
+  renderWeeklyReport();
+}
+
+function showPage(page) {
+  const showingReports = page === 'reports';
+  timerPageEl.hidden = showingReports;
+  reportsPageEl.hidden = !showingReports;
+  timerPageBtn.classList.toggle('active', !showingReports);
+  reportsPageBtn.classList.toggle('active', showingReports);
+  if (showingReports) renderWeeklyReport();
 }
 
 function renderTodayTotal() {
-  const key = dailyKey();
-  const current = getCookie(key);
-  const seconds = current ? Number(current) || 0 : 0;
-  todayTotalEl.textContent = formatStopwatch(seconds);
+  todayTotalEl.textContent = formatStopwatch(getTodaySeconds());
 }
 
 function dailyKey() {
@@ -316,6 +398,7 @@ function addTopic() {
   saveTopics();
   renderTopicSelect();
   renderTopicList();
+  renderWeeklyReport();
   newTopicInput.value = '';
 }
 
@@ -333,13 +416,37 @@ function removeTopic(topic) {
   renderTopicSelect();
   renderTopicList();
   renderTopicTimers();
+  renderWeeklyReport();
 }
+
+// Run createMockFocusData() in DevTools to populate the report with 28 days of sample data.
+window.createMockFocusData = function createMockFocusData() {
+  const sampleTopics = [...new Set([...topics, 'work', 'study', 'exercise'])];
+  topics = sampleTopics;
+  saveTopics();
+  const reports = getReports();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let offset = 0; offset < 28; offset += 1) {
+    const day = new Date(today); day.setDate(today.getDate() - offset);
+    const dayTopics = {};
+    sampleTopics.forEach((topic, index) => {
+      const isRestDay = day.getDay() === 0 && index > 0;
+      const minutes = isRestDay ? 0 : Math.floor(Math.random() * (index === 0 ? 45 : 110));
+      if (minutes) dayTopics[topic] = minutes * 60;
+    });
+    reports[dateId(day)] = { total: Object.values(dayTopics).reduce((sum, seconds) => sum + seconds, 0), topics: dayTopics };
+  }
+  saveReports(reports);
+  visibleReportTopics = new Set(topics);
+  renderTopicSelect(); renderTopicList(); renderTodayTotal(); renderTopicTimers(); renderWeeklyReport();
+  console.info('Mock focus data created for the last 28 days.');
+};
 
 function renderTopicTimers() {
   topicTimersEl.innerHTML = '';
   topics.forEach(topic => {
-    const topicKey = dailyTopicKey(topic);
-    const topicSeconds = getCookie(topicKey) ? Number(getCookie(topicKey)) || 0 : 0;
+    const topicSeconds = getTodayTopicSeconds(topic);
     
     const item = document.createElement('div');
     item.className = 'summary-item topic-timer-item';
@@ -377,21 +484,17 @@ function renderTopicTimers() {
 }
 
 function adjustTopicTime(topic, seconds) {
-  const topicKey = dailyTopicKey(topic);
-  const current = getCookie(topicKey);
-  const currentSeconds = current ? Number(current) || 0 : 0;
+  const { reports, report } = reportForToday();
+  const currentSeconds = Number(report.topics[topic]) || 0;
   const updated = Math.max(0, currentSeconds + seconds);
-  setCookie(topicKey, String(updated), 7);
-  
-  // Update total
-  const totalKey = dailyKey();
-  const totalCurrent = getCookie(totalKey);
-  const totalSeconds = totalCurrent ? Number(totalCurrent) || 0 : 0;
-  const totalUpdated = Math.max(0, totalSeconds + seconds);
-  setCookie(totalKey, String(totalUpdated), 7);
+  const appliedChange = updated - currentSeconds;
+  report.topics[topic] = updated;
+  report.total = Math.max(0, (Number(report.total) || 0) + appliedChange);
+  saveReports(reports);
   
   renderTodayTotal();
   renderTopicTimers();
+  renderWeeklyReport();
 }
 
 topicSelect.addEventListener('change', () => {
@@ -417,12 +520,19 @@ settingsOverlay.addEventListener('click', (e) => {
 });
 
 startBtn.addEventListener('click', handleMainButton);
+timerPageBtn.addEventListener('click', () => showPage('timer'));
+timerNav.addEventListener('click', event => { event.preventDefault(); showPage('timer'); });
+reportsPageBtn.addEventListener('click', () => showPage('reports'));
+previousWeekBtn.addEventListener('click', () => { reportWeekOffset += 1; renderWeeklyReport(); });
+nextWeekBtn.addEventListener('click', () => { reportWeekOffset = Math.max(0, reportWeekOffset - 1); renderWeeklyReport(); });
 
 loadSettings();
 loadTopics();
+migrateTodayFromLegacyCookies();
 setActiveTab('focus');
 renderTodayTotal();
 renderTopicTimers();
+renderWeeklyReport();
 updateCountdown();
 updateStopwatch(0);
 updateButtonText();

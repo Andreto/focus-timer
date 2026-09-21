@@ -4,14 +4,60 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Focus Timer</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root { --accent: #7194FF; }
+    .primary { background: var(--accent); color: #0d1117; }
+    .primary:hover { background: #88A7FF; }
+    .primary:active { background: #5F82EE; }
+    .topic-select:focus, .setting-group input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(113, 148, 255, .28); }
+    .nav-link.active { box-shadow: inset 0 -2px var(--accent); }
+    .report-navigation { display: flex; align-items: center; gap: 10px; padding: 4px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117; }
+    .week-button { display: inline-flex; align-items: center; justify-content: center; width: 30px; min-height: 30px; padding: 5px; border: 0; border-radius: 4px; background: transparent; color: #8b949e; cursor: pointer; }
+    .week-button:hover { background: #21262d; color: #f0f6fc; }
+    .week-button:disabled { color: #484f58; cursor: default; }
+    .week-button:disabled:hover { background: transparent; }
+    .report-range { min-width: 150px; padding: 0 3px; color: #c9d1d9; font-size: 12px; font-weight: 600; text-align: center; white-space: nowrap; }
+    .week-button svg, .settings-btn svg { width: 16px; height: 16px; stroke-width: 2; }
+    .chart-axis { height: calc(100% - 48px); margin: 24px 0; padding-bottom: 0; }
+    .chart-axis { position: relative; display: block; }
+    .chart-axis span { position: absolute; right: 0; transform: translateY(-50%); }
+    .chart-axis span:nth-child(1) { top: 0; }
+    .chart-axis span:nth-child(2) { top: 25%; }
+    .chart-axis span:nth-child(3) { top: 50%; }
+    .chart-axis span:nth-child(4) { top: 75%; }
+    .chart-axis span:nth-child(5) { top: 100%; }
+    .weekly-chart { border-bottom: 0; background: none; }
+    .weekly-chart::before { content: ""; position: absolute; z-index: 0; top: 24px; right: 0; bottom: 24px; left: 0; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(25% - 1px), #30363d calc(25% - 1px), #30363d 25%); pointer-events: none; }
+    .weekly-chart::after { content: ""; position: absolute; z-index: 2; right: 0; bottom: 24px; left: 0; border-bottom: 1px solid #30363d; pointer-events: none; }
+    .chart-day { position: relative; z-index: 1; display: grid; grid-template-rows: 16px minmax(0, 1fr) 16px; gap: 8px; }
+    .chart-bar-area { width: 100%; height: 100%; min-height: 0; align-self: stretch; }
+    .chart-segment { flex: 0 0 auto; }
+    .chart-value { visibility: visible; }
+    .chart-axis span:first-child { display: none; }
+    .app-header { padding-right: max(20px, calc((100% - 1600px) / 2)); padding-left: max(20px, calc((100% - 1600px) / 2)); }
+    .main:has(.reports-page:not([hidden])) { width: calc(100% - 32px); max-width: 1600px; margin-top: 16px; padding: 0; }
+    .reports-page { width: 100%; max-width: none; padding-top: 18px; }
+    .chart-day { justify-items: center; }
+    .chart-bar-area { width: 70% !important; min-width: 72px; max-width: 160px; }
+    @media (max-width: 700px) {
+      .main:has(.reports-page:not([hidden])) { width: calc(100% - 16px); }
+      .chart-bar-area { width: 82% !important; min-width: 0; max-width: 72px; }
+    }
+  </style>
 </head>
 <body>
+  <header class="app-header">
+    <a class="app-brand" href="#timer" id="timerNav">Focus Timer</a>
+    <nav class="app-nav" aria-label="Main navigation">
+      <button id="timerPageBtn" class="nav-link active">Timer</button>
+      <button id="reportsPageBtn" class="nav-link">History</button>
+    </nav>
+  </header>
   <main class="main">
-    <button id="settingsBtn" class="settings-btn" title="Settings"><span class="settings-icon">⚙️</span></button>
+    <button id="settingsBtn" class="settings-btn" title="Settings" aria-label="Settings"><i data-lucide="settings"></i></button>
+    <section id="timerPage">
     <section class="timer-card">
       <div class="topic-selector">
         <label for="topicSelect">Current topic:</label>
@@ -40,6 +86,17 @@
         </div>
       </div>
       <div id="topicTimers" class="topic-timers"></div>
+    </section>
+    </section>
+
+    <section id="reportsPage" class="reports-page" aria-labelledby="reportsTitle" hidden>
+      <div class="reports-header">
+        <div><h2 id="reportsTitle">Focus reports</h2><p class="reports-description">Your focus time, broken down by day and topic.</p></div>
+        <div class="report-navigation"><button id="previousWeek" class="week-button" aria-label="Previous week"><i data-lucide="chevron-left"></i></button><span id="reportRange" class="report-range"></span><button id="nextWeek" class="week-button" aria-label="Next week"><i data-lucide="chevron-right"></i></button></div>
+      </div>
+      <div id="reportFilters" class="report-filters" aria-label="Choose report categories"></div>
+      <div class="chart-shell"><div id="chartAxis" class="chart-axis" aria-hidden="true"></div><div id="weeklyChart" class="weekly-chart" role="img" aria-label="Stacked focus time by day"></div></div>
+      <div id="weeklyTotal" class="weekly-total"></div>
     </section>
   </main>
 
@@ -74,5 +131,6 @@
   </div>
 
   <script src="script.js"></script>
+  <script>lucide.createIcons();</script>
 </body>
 </html>
